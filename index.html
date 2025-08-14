@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lottie Viewer — partage client</title>
+  <meta name="description" content="Lecteur Lottie (.json) simple à héberger et partager via un lien." />
+  <!-- Web Component lottie-player (léger et sans build) -->
+  <script type="module" src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+  <style>
+    :root { --fg:#0f172a; --muted:#475569; --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; color:var(--fg); background:linear-gradient(180deg,#f8fafc, #eef2f7 60%); }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+    h1 { font-size: 20px; margin:0; letter-spacing: .2px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 6px 24px rgba(15,23,42,.06); }
+    .viewer { display:grid; gap:16px; grid-template-columns: 1fr; }
+    .playerBox { display:grid; place-items:center; background:white; border:1px dashed var(--border); border-radius:12px; padding: 12px; }
+    lottie-player { width:100%; max-width: 900px; height:auto; aspect-ratio: 1 / 1; }
+    .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+    .controls .row { display:flex; align-items:center; gap:8px; }
+    label { color:var(--muted); font-size: 12px; }
+    input[type="range"] { width:160px; }
+    .hint { color:var(--muted); font-size:12px; margin-top:10px; }
+    .drop { margin-top:8px; padding:10px; border:1px dashed var(--border); border-radius:10px; text-align:center; color:var(--muted); }
+    .pill { font-size: 11px; background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; border:1px solid #e0e7ff; }
+    button { appearance: none; border:1px solid var(--border); background:white; padding:8px 10px; border-radius:10px; cursor:pointer; }
+    button:hover { background:#f8fafc; }
+    code { background:#f1f5f9; padding:2px 6px; border-radius:6px; }
+    footer { margin-top:18px; color:var(--muted); font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Lottie Viewer <span class="pill">.json</span></h1>
+      <div class="row" style="display:flex; gap:10px; align-items:center;">
+        <a href="#" id="copyLink" title="Copier le lien actuel"><button>🔗 Copier le lien</button></a>
+        <a href="#" id="openRaw" title="Ouvrir le .json"><button>📄 Ouvrir le .json</button></a>
+      </div>
+    </header>
+
+    <div class="card viewer">
+      <div class="playerBox">
+        <!-- Par défaut, charge animation.json (mettez votre fichier à côté de cette page) -->
+        <lottie-player id="player" src="animation.json" background="transparent" speed="1" loop autoplay></lottie-player>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <button id="toggle">⏯️ Pause</button>
+          <label for="speed">Vitesse</label>
+          <input id="speed" type="range" min="0.1" max="3" step="0.1" value="1" />
+          <label><input type="checkbox" id="loop" checked /> Loop</label>
+        </div>
+        <div class="row">
+          <label for="bg">Fond</label>
+          <select id="bg">
+            <option value="transparent" selected>Transparent</option>
+            <option value="#ffffff">Blanc</option>
+            <option value="#000000">Noir</option>
+          </select>
+          <label for="fit">Ajustement</label>
+          <select id="fit">
+            <option value="contain" selected>Contain</option>
+            <option value="cover">Cover</option>
+            <option value="fill">Fill</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <div class="hint">💡 <strong>Deux façons de l'utiliser :</strong></div>
+        <ul class="hint">
+          <li><strong>Fichier local :</strong> glissez-déposez un <code>.json</code> ci-dessous pour prévisualiser (non partagé).</li>
+          <li><strong>Partage client :</strong> hébergez votre <code>.json</code> et appelez cette page avec <code>?src=URL_DU_JSON</code> ou remplacez <code>animation.json</code> par votre fichier hébergé.</li>
+        </ul>
+        <div class="drop" id="drop">Déposez un fichier <code>.json</code> ici ou <label for="file" style="text-decoration:underline; cursor:pointer;">cliquez pour sélectionner</label>.
+          <input id="file" type="file" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Paramètres URL : <code>?src=https://exemple.com/mon-animation.json&speed=1.2&loop=1&bg=transparent</code></p>
+    </footer>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const player = $('#player');
+    const toggleBtn = $('#toggle');
+    const speedInput = $('#speed');
+    const loopInput = $('#loop');
+    const bgSelect = $('#bg');
+    const fitSelect = $('#fit');
+    const copyLink = $('#copyLink');
+    const openRaw = $('#openRaw');
+
+    // URL params support: ?src=...&speed=1.2&loop=1&bg=transparent
+    const params = new URLSearchParams(location.search);
+    const srcParam = params.get('src');
+    const spdParam = parseFloat(params.get('speed'));
+    const loopParam = params.get('loop');
+    const bgParam = params.get('bg');
+
+    if (srcParam) {
+      player.setAttribute('src', srcParam);
+    }
+    if (!Number.isNaN(spdParam)) {
+      player.setSpeed(spdParam);
+      speedInput.value = spdParam;
+    }
+    if (loopParam !== null) {
+      const shouldLoop = loopParam === '1' || loopParam.toLowerCase() === 'true';
+      player.setLooping(shouldLoop);
+      loopInput.checked = shouldLoop;
+    }
+    if (bgParam) {
+      player.setAttribute('background', bgParam);
+      bgSelect.value = bgParam;
+    }
+
+    // Controls
+    toggleBtn.addEventListener('click', () => {
+      if (player.isPaused) {
+        player.play();
+        toggleBtn.textContent = '⏯️ Pause';
+      } else {
+        player.pause();
+        toggleBtn.textContent = '▶️ Lecture';
+      }
+    });
+
+    speedInput.addEventListener('input', () => player.setSpeed(parseFloat(speedInput.value)));
+
+    loopInput.addEventListener('change', () => player.setLooping(loopInput.checked));
+
+    bgSelect.addEventListener('change', () => player.setAttribute('background', bgSelect.value));
+
+    fitSelect.addEventListener('change', () => player.style.objectFit = fitSelect.value);
+
+    // Drag & drop / local file preview
+    const drop = $('#drop');
+    const file = $('#file');
+
+    const loadFile = (f) => {
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const blob = new Blob([e.target.result], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        player.setAttribute('src', url);
+        player.load();
+        player.play();
+      };
+      reader.readAsText(f);
+    };
+
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.background = '#f8fafc'; });
+    drop.addEventListener('dragleave', () => { drop.style.background = ''; });
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault(); drop.style.background = '';
+      loadFile(e.dataTransfer.files[0]);
+    });
+    drop.addEventListener('click', () => file.click());
+    file.addEventListener('change', () => loadFile(file.files[0]));
+
+    // Shareable link helpers
+    const buildLink = () => {
+      const u = new URL(location.href);
+      const p = new URLSearchParams(u.search);
+      p.set('speed', speedInput.value);
+      p.set('loop', loopInput.checked ? '1' : '0');
+      p.set('bg', bgSelect.value);
+      u.search = p.toString();
+      return u.toString();
+    };
+
+    copyLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigator.clipboard.writeText(buildLink());
+      copyLink.querySelector('button').textContent = '✅ Lien copié';
+      setTimeout(() => (copyLink.querySelector('button').textContent = '🔗 Copier le lien'), 1200);
+    });
+
+    openRaw.addEventListener('click', (e) => {
+      e.preventDefault();
+      const src = player.getAttribute('src');
+      if (src) window.open(src, '_blank');
+    });
+  </script>
+</body>
+</html>
